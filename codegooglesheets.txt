@@ -1,0 +1,89 @@
+function doGet(e) { 
+  Logger.log(JSON.stringify(e));
+  var result = 'Ok';
+  if (e.parameter == 'undefined') {
+    result = 'No Parameters';
+  }
+  else {
+    var sheet_id = '1jU-UpvAEXL50ufJgY5R2iLr_0UKo308oJr5UmudTM7o'; 	// Spreadsheet ID.
+    var sheet_name = "RTOS_ESP32_Schedule";  // Sheet Name in Google Sheets.
+
+    var sheet_open = SpreadsheetApp.openById(sheet_id);
+    var sheet_target = sheet_open.getSheetByName(sheet_name);
+    var lastRow =  sheet_target.getLastRow();
+    var data_range = sheet_target.getRange(1, 1, lastRow, 5)
+    var data = data_range.getValues();
+    var newRow = sheet_target.getLastRow() + 1;
+    var rowDataLog = [];
+    var Data_for_E3;
+    var Data_for_F3;
+    var Data_for_G3;
+    const now = new Date();  // Lấy ngày giờ hiện tại
+    var currentTime = Utilities.formatDate(new Date(), "Asia/Jakarta", 'dd/MM/yyyy HH:mm');
+    var month = ('0' + (now.getMonth()+1)).slice(-2);
+    var day = ('0' + now.getDate()).slice(-2);
+    var year = now.getFullYear();  // Lấy năm
+    var hours = ('0' + now.getHours()).slice(-2);
+    var minutes = ('0' + now.getMinutes()).slice(-2);
+    var sts_val = '';
+    rowDataLog[0] = currentTime;  // Date will be written in column A (in the "DHT11 Sensor Data Logger" section).
+    for (var param in e.parameter) {
+      Logger.log('In for loop, param=' + param);
+      var value = stripQuotes(e.parameter[param]);
+      Logger.log(param + ':' + e.parameter[param]);
+      switch (param) {
+        case 'sts':
+          sts_val = value;
+          break;
+        case 'day':
+          rowDataLog[1] = value;  // Sensor Reading Status will be written in column B (in the "DHT11 Sensor Data Logger" section).
+          result += ', Day Schedule Written on column B';
+          break;
+        case 'nofi':
+          rowDataLog[2] = value; // The humidity value will be written in column C (in the "DHT11 Sensor Data Logger" section).
+          result += ', Nofication Written on column C';
+          break;
+        default:
+          result += ", unsupported parameter";
+      }
+    }
+    
+    // Conditions for writing data received from ESP32 to Google Sheets.
+    if (sts_val == 'write') {
+      // Writes data to the "DHT11 Sensor Data Logger" section.
+      Logger.log(JSON.stringify(rowDataLog));
+      var newRangeDataLog = sheet_target.getRange(newRow, 1, 1, rowDataLog.length);
+      newRangeDataLog.setValues([rowDataLog]);
+      return ContentService.createTextOutput(result);
+    }
+    // Conditions for sending data to ESP32 when ESP32 reads data from Google Sheets.
+    if (sts_val == 'read') {
+      for (var i = 0; i < lastRow; i++) {
+            var time_data = new Date(data[i][1]); // Dữ liệu của cột B
+            var month_data = ('0' + (time_data.getMonth()+1)).slice(-2);
+            var day_data = ('0' + time_data.getDate()).slice(-2);
+            var year_data = time_data.getFullYear();  // Lấy năm
+            var hours_data = ('0' + time_data.getHours()).slice(-2);
+            var minutes_data = ('0' + time_data.getMinutes()).slice(-2);
+            if (day === day_data && month === month_data && year === year_data && hours === hours_data && minutes === minutes_data) {
+            var  Data_for_E3 = new Date(data[i][0]);
+            var  Data_for_F3 = new Date(data[i][1]);
+            var  Data_for_G3 = data[i][2];
+            var RangeDataLatest = sheet_target.getRange('E3:G3');
+          RangeDataLatest.setValues([[Data_for_E3, Data_for_F3, Data_for_G3]]);
+            var all_Data = sheet_target.getRange('G3').getDisplayValues();
+          return ContentService.createTextOutput(all_Data);
+            }
+          }
+         
+      // Use the line of code below if you want ESP32 to read data from columns I3 to O3 (Date,Time,Sensor Reading Status,Temperature,Humidity,Switch 1, Switch 2).
+      // var all_Data = sheet_target.getRange('I3:O3').getDisplayValues();
+      // Use the line of code below if you want ESP32 to read data from columns K3 to O3 (Sensor Reading Status,Temperature,Humidity,Switch 1, Switch 2).
+      
+    }
+  }
+}
+
+function stripQuotes( value ) {
+  return value.replace(/^["']|['"]$/g, "");
+}
